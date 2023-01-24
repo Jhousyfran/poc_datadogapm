@@ -1,0 +1,162 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    agent.datadoghq.com/component: cluster-agent
+    agent.datadoghq.com/name: datadog
+    app.kubernetes.io/instance: cluster-agent
+    app.kubernetes.io/managed-by: datadog-operator
+    app.kubernetes.io/name: datadog-agent-deployment
+    app.kubernetes.io/part-of: default-datadog
+    app.kubernetes.io/version: ""
+  name: datadog-cluster-agent
+  namespace: default
+  ownerReferences:
+  - apiVersion: datadoghq.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: DatadogAgent
+    name: datadog
+    uid: 97b611d6-ae76-428f-b37f-8550c02e2a93
+  resourceVersion: "3653"
+  uid: 4aa4b7a5-e54b-4999-941f-6354544592d7
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      agent.datadoghq.com/component: cluster-agent
+      agent.datadoghq.com/name: datadog
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        agent.datadoghq.com/component: cluster-agent
+        agent.datadoghq.com/name: datadog
+        app.kubernetes.io/instance: cluster-agent
+        app.kubernetes.io/managed-by: datadog-operator
+        app.kubernetes.io/name: datadog-agent-deployment
+        app.kubernetes.io/part-of: default-datadog
+        app.kubernetes.io/version: ""
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                agent.datadoghq.com/component: cluster-agent
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - env:
+        - name: DD_CLUSTER_CHECKS_ENABLED
+          value: "false"
+        - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
+          value: datadog-cluster-agent
+        - name: DD_LEADER_ELECTION
+          value: "true"
+        - name: DD_COMPLIANCE_CONFIG_ENABLED
+          value: "false"
+        - name: DD_COLLECT_KUBERNETES_EVENTS
+          value: "false"
+        - name: DD_HEALTH_PORT
+          value: "5555"
+        - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: datadog
+        - name: DD_LOG_LEVEL
+          value: INFO
+        - name: DD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: api-key
+              name: datadog-secret
+        - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+          value: "true"
+        - name: DD_ORCHESTRATOR_EXPLORER_CONTAINER_SCRUBBING_ENABLED
+          value: "true"
+        - name: DD_KUBELET_TLS_VERIFY
+          value: "false"
+        - name: KUBELET_TLS_VERIFY
+          value: "false"
+        image: gcr.io/datadoghq/cluster-agent:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /live
+            port: 5555
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: cluster-agent
+        ports:
+        - containerPort: 5005
+          name: agentport
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /ready
+            port: 5555
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/datadog-agent/install_info
+          name: installinfo
+          readOnly: true
+          subPath: install_info
+        - mountPath: /conf.d
+          name: confd
+          readOnly: true
+        - mountPath: /var/log/datadog
+          name: logdatadog
+        - mountPath: /etc/datadog-agent/certificates
+          name: certificates
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /etc/datadog-agent/conf.d/orchestrator.d
+          name: orchestrator-explorer-config
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: datadog-cluster-agent
+      serviceAccountName: datadog-cluster-agent
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: datadog-install-info
+        name: installinfo
+      - emptyDir: {}
+        name: confd
+      - emptyDir: {}
+        name: logdatadog
+      - emptyDir: {}
+        name: certificates
+      - emptyDir: {}
+        name: tmp
+      - configMap:
+          defaultMode: 420
+          name: datadog-orchestrator-explorer-config
+        name: orchestrator-explorer-config

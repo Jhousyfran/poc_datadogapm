@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dotnet-todoapi
+  labels:
+    tags.datadoghq.com/env: "staging"
+    tags.datadoghq.com/version: "1"
+    tags.datadoghq.com/service: "dotnet-todoapi"
+spec:
+  selector:
+    matchLabels:
+      app: dotnet-todoapi
+  template:
+    metadata:
+      labels:
+        tags.datadoghq.com/env: "staging"
+        tags.datadoghq.com/version: "1"
+        tags.datadoghq.com/service: "dotnet-todoapi"
+        app: dotnet-todoapi
+    spec:
+      volumes:
+        - hostPath:
+            path: /var/run/datadog/
+          name: apmsocketpath
+      containers:
+      - name: dotnet-todoapi
+        image: jhousyfran/dotnetapm:datadog
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - name: apmsocketpath
+            mountPath: /var/run/datadog
+        env:
+          - name: DD_SERVICE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['tags.datadoghq.com/service'] 
+          - name: DD_ENV
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['tags.datadoghq.com/env']
+          - name: DD_VERSION
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['tags.datadoghq.com/version']
+          - name: DD_LOGS_INJECTION
+            value: "true"
+          - name: DD_RUNTIME_METRICS_ENABLED
+            value: "true"
+          - name: DD_SOURCE
+            value: "csharp"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dotnet-todoapi
+spec:
+  type: LoadBalancer
+  selector:
+    app: dotnet-todoapi
+  ports:
+  - name: http
+    port: 8081
+    targetPort: 80
